@@ -11,6 +11,7 @@ class Socket
     protected $host;
     protected $port;
     protected $address;
+    protected $socket;
 
     protected $connects = array();
 
@@ -21,45 +22,10 @@ class Socket
         $this->address = "$host:$port";
     }
 
-    public function connect()
-    {
-        $this->inform('WELCOME TO SERVER!');
-        $socket = stream_socket_server($this->address, $errno, $errstr);
-
-        while (true) {
-            $streams = $this->connects;
-            $write = $except = null;
-            $streams[] = $socket;
-
-            if (!stream_select($streams, $write, $except, null)) {
-                break;
-            }
-
-            if (in_array($socket, $streams)) {
-                if ($connect = stream_socket_accept($socket, -1)) {
-                    $this->connects[] = $connect;
-                    unset($streams[array_search($socket, $streams)]);
-                    $this->onOpen($connect, "Welcome to my socket\n");
-                    $this->inform("New connect!");
-                }
-            }
-
-            foreach ($streams as $resource) {
-                $data = fread($resource, self::LIMIT);
-
-                if ($data == false) {
-                    $connectKey = array_search($resource, $this->connects);
-                    unset($this->connects[$connectKey]);
-                    $this->inform("$resource disconnected");
-                    break;
-                }
-
-                $this->onMessage($resource, $data);
-                $this->sendMessage($resource, $data);
-            }
-        }
-    }
-
+    /**
+     * @param $connect
+     * @return array|bool
+     */
     protected function handshake($connect)
     {
         $line = fgets($connect);
@@ -98,23 +64,31 @@ class Socket
         return $information;
     }
 
+    /**
+     * @param $connect
+     * @param $data
+     */
     protected function onMessage($connect, $data)
     {
         $this->inform("$connect: $data");
     }
 
+    /**
+     * @param $connect
+     * @param $msg
+     */
     protected function onOpen($connect, $msg)
     {
         fwrite($connect, $msg, self::LIMIT);
     }
 
-    protected function sendMessage($currentConnect, $msg)
+    /**
+     * @param $resource
+     * @return mixed
+     */
+    protected function getMessage($resource)
     {
-        foreach ($this->connects as $connect) {
-            if ($connect != $currentConnect) {
-                fwrite($connect, "$currentConnect say: $msg", self::LIMIT);
-            }
-        }
+        return fread($resource, self::LIMIT);
     }
 
 }

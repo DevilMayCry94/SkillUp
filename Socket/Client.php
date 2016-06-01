@@ -2,63 +2,102 @@
 
 namespace Socket;
 
-class Client
+class Client extends Socket implements SocketInterface
 {
-    use Inform;
+    /**
+     * Input stream
+     * @var resource $stdin
+     */
+    protected $stdin;
 
-    const LIMIT = 10000;
-    
-    protected $host;
-    protected $port;
-    protected $address;
+    /**
+     * Error message if the connection fails
+     * @var string $errstr
+     */
+    protected $errstr;
+
+    /**
+     * Error number if connection fails
+     * @var integer $errno
+     */
+    protected $errno;
 
     public function __construct($host, $port)
     {
-        $this->host = $host;
-        $this->port = $port;
-        $this->address = "$host:$port";
+        parent::__construct($host, $port);
     }
 
-    public function start()
+    /**
+     * Connect to host
+     * @return mixed
+     */
+    public function connect()
     {
-        $resource = stream_socket_client($this->address, $errno, $errstr);
-        $stdin = fopen('php://stdin', 'r');
-        if (!$resource) {
-            $this->inform("$errstr ($errno)");
-        } else {
-            $this->inform("Welcome to $this->address");
-            while (!feof($resource)) {
-                $streams = array($resource, $stdin);
-                $write = $except = null;
-
-                if (!stream_select($streams, $write, $except, null)) {
-                    break;
-                }
-
-                foreach ($streams as $stream) {
-                    if ($stream == $stdin) {
-                        $msg = trim(fgets($stdin));
-                        $this->send($resource, $msg);
-                    } else {
-                        $msg = fread($stream, self::LIMIT);
-                        $this->onMessage($msg);
-                    }
-                }
-            }
-            fclose($resource);
+        $this->socket = stream_socket_client($this->address, $this->errno, $this->errstr);
+        $this->stdin = fopen('php://stdin', 'r');
+        if (!$this->socket) {
+            $this->inform("$this->errstr ($this->errno)");
         }
     }
 
-    protected function send($resource, $msg)
+    /**
+     * Listen resource
+     * @param $resources
+     * @return mixed
+     */
+    public function onChange($resources)
     {
-        fwrite($resource, $msg);
+        foreach ($resources as $stream) {
+            if ($stream == $this->stdin) {
+                $msg = trim(fgets($this->stdin));
+                $this->sendMessage($this->socket, $msg);
+            } else {
+                $msg = $this->getMessage($stream);
+                $this->inform($msg);
+            }
+        }
     }
 
-    protected function onMessage($msg)
+    /**
+     * Send message to resource
+     * @param $resource
+     * @param $message
+     * @return mixed
+     */
+    public function sendMessage($resource, $message)
     {
-        $this->inform("$msg");
+        fwrite($resource, $message);
+    }
+
+    /**
+     * socket in wait state
+     * @return mixed
+     */
+    public function onListen()
+    {
+        if (!$this->socket) {
+            $this->connect();
+        }
+        $this->inform("Welcome to $this->address");
+        while (!feof($this->socket)) {
+            $streams = array($this->socket, $this->stdin);
+            $write = $except = null;
+
+            if (!stream_select($streams, $write, $except, null)) {
+                break;
+            }
+
+            $this->onChange($streams);
+        }
+        fclose($this->socket);
+
+    }
+
+    /**
+     * start listen socket
+     */
+    public function start()
+    {
+        $this->onListen();
     }
 }
-
-$client = new Client('10.10.24.161', 8890);
-$client->start();
