@@ -1,28 +1,36 @@
 <?php
 
+namespace Socket;
+
 class Client
 {
+    use Inform;
+
+    const LIMIT = 10000;
+    
     protected $host;
     protected $port;
+    protected $address;
 
-    public function __construct($host, $post)
+    public function __construct($host, $port)
     {
         $this->host = $host;
-        $this->port = $post;
+        $this->port = $port;
+        $this->address = "$host:$port";
     }
 
     public function start()
     {
-        $address = "$this->host:$this->port";
-        $connect = stream_socket_client($address, $errno, $errstr);
+        $resource = stream_socket_client($this->address, $errno, $errstr);
         $stdin = fopen('php://stdin', 'r');
-        if (!$connect) {
-            echo "$errstr ($errno)<br />\n";
+        if (!$resource) {
+            $this->inform("$errstr ($errno)");
         } else {
-            echo "Welcome to $this->host:$this->port\n";
-            while (!feof($connect)) {
-                $streams = array($connect, $stdin);
+            $this->inform("Welcome to $this->address");
+            while (!feof($resource)) {
+                $streams = array($resource, $stdin);
                 $write = $except = null;
+
                 if (!stream_select($streams, $write, $except, null)) {
                     break;
                 }
@@ -30,14 +38,14 @@ class Client
                 foreach ($streams as $stream) {
                     if ($stream == $stdin) {
                         $msg = trim(fgets($stdin));
-                        $this->send($connect, $msg);
+                        $this->send($resource, $msg);
                     } else {
-                        $msg = fread($stream, 10000);
+                        $msg = fread($stream, self::LIMIT);
                         $this->onMessage($msg);
                     }
                 }
             }
-            fclose($connect);
+            fclose($resource);
         }
     }
 
@@ -48,7 +56,7 @@ class Client
 
     protected function onMessage($msg)
     {
-        echo "$msg\n";
+        $this->inform("$msg");
     }
 }
 

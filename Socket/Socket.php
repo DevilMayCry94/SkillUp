@@ -1,79 +1,93 @@
 <?php
 
+namespace Socket;
+
 class Socket
 {
-    protected $ip;
+    use Inform;
+
+    const LIMIT = 10000;
+
+    protected $host;
     protected $port;
+    protected $address;
 
     protected $connects = array();
 
-    public function __construct($ip, $port)
+    public function __construct($host, $port)
     {
-        $this->ip= $ip;
+        $this->host= $host;
         $this->port= $port;
+        $this->address = "$host:$port";
     }
 
     public function connect()
     {
-        echo "WELCOME\n";
-        $address = "$this->ip:$this->port";
-        $socket = stream_socket_server($address, $errno, $errstr);
+        $this->inform('WELCOME TO SERVER!');
+        $socket = stream_socket_server($this->address, $errno, $errstr);
+
         while (true) {
-            $read = $this->connects;
+            $streams = $this->connects;
             $write = $except = null;
-            $read [] = $socket;
-            if (!stream_select($read, $write, $except, null)) {
+            $streams[] = $socket;
+
+            if (!stream_select($streams, $write, $except, null)) {
                 break;
             }
-            if (in_array($socket, $read)) {
-                if (($connect = stream_socket_accept($socket, -1))/* && $info = $this->handshake($connect)*/) {
+
+            if (in_array($socket, $streams)) {
+                if ($connect = stream_socket_accept($socket, -1)) {
                     $this->connects[] = $connect;
-                    unset($read[array_search($socket, $read)]);
+                    unset($streams[array_search($socket, $streams)]);
                     $this->onOpen($connect, "Welcome to my socket\n");
-                    echo "New connect!\n";
+                    $this->inform("New connect!");
                 }
             }
-            foreach ($read as $connect) {
-                $data = fread($connect, 100000);
+
+            foreach ($streams as $resource) {
+                $data = fread($resource, self::LIMIT);
+
                 if ($data == false) {
-                    unset($this->connects[array_search($connect, $this->connects)]);
-                    echo "$connect disconnected\n";
+                    $connectKey = array_search($resource, $this->connects);
+                    unset($this->connects[$connectKey]);
+                    $this->inform("$resource disconnected");
                     break;
                 }
-                $this->onMessage($connect, $data);
-                $this->sendMsg($connect, $data);
+
+                $this->onMessage($resource, $data);
+                $this->sendMessage($resource, $data);
             }
         }
     }
 
     protected function handshake($connect)
     {
-
         $line = fgets($connect);
         $header = explode(' ', $line);
-        print_r($header);
-        $inf = array(
+        $information = array(
             'method' => $header[0],
             'uri' => $header[1]
         );
 
         while ($line = rtrim(fgets($connect))) {
             if (preg_match('/\A(\S+): (.*)\z/', $line, $matches)) {
-                $inf[$matches[1]] = $matches[2];
+                $information[$matches[1]] = $matches[2];
             } else {
                 break;
             }
         }
 
         $address = explode(':', stream_socket_get_name($connect, true));
-        $inf['ip'] = $address[0];
-        $inf['port'] = $address[1];
+        $information['ip'] = $address[0];
+        $information['port'] = $address[1];
 
         if (empty($inf['Sec-WebSocket-Key'])) {
             return false;
         }
 
-        $SecWebSocketAccept = base64_encode(pack('H*', sha1($inf['Sec-WebSocket-Key'] . '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')));
+        $hash = $information['Sec-WebSocket-Key'] . '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+        $hash = sha1($hash);
+        $SecWebSocketAccept = base64_encode(pack('H*', $hash));
         $response = "HTTP/1.1 101 Web Socket Protocol Handshake\r\n" .
             "Upgrade: websocket\r\n" .
             "Connection: Upgrade\r\n" .
@@ -81,24 +95,24 @@ class Socket
 
         fwrite($connect, $response);
 
-        return $inf;
+        return $information;
     }
 
     protected function onMessage($connect, $data)
     {
-        echo "$connect: $data\n";
+        $this->inform("$connect: $data");
     }
 
     protected function onOpen($connect, $msg)
     {
-        fwrite($connect, $msg, 10000);
+        fwrite($connect, $msg, self::LIMIT);
     }
 
-    protected function sendMsg($currentConnect, $msg)
+    protected function sendMessage($currentConnect, $msg)
     {
         foreach ($this->connects as $connect) {
             if ($connect != $currentConnect) {
-                fwrite($connect, "$currentConnect say: $msg", 100000);
+                fwrite($connect, "$currentConnect say: $msg", self::LIMIT);
             }
         }
     }
