@@ -2,7 +2,7 @@
 
 namespace Socket;
 
-class Server extends Socket implements SocketInterface
+class Server extends Socket
 {
 
     public function __construct($host, $port)
@@ -31,7 +31,7 @@ class Server extends Socket implements SocketInterface
         }
 
         while (true) {
-            $streams = $this->connects;
+            $streams = $this->resources;
             $write = $except = null;
             $socket = $this->socket;
             $streams[] = $socket;
@@ -42,11 +42,11 @@ class Server extends Socket implements SocketInterface
             }
 
             if (in_array($socket, $streams)) {
-                if ($newConnect = stream_socket_accept($socket, -1)) {
-                    $this->connects[] = $newConnect;
+                if ($newResource = stream_socket_accept($socket, -1)) {
+                    $this->resources[] = $newResource;
 
                     unset($streams[array_search($socket, $streams)]);
-                    $this->sendMessage($newConnect, "Welcome to my socket\n");
+                    $this->sendMessage($newResource, "Welcome to my socket\n");
                     $this->notify("New connect!");
                 }
             }
@@ -57,17 +57,17 @@ class Server extends Socket implements SocketInterface
 
     /**
      * Listen resource
-     * @param $resources
+     * @param $changedResources
      * @return mixed
      */
-    public function onChange($resources)
+    public function onChange($changedResources)
     {
-        foreach ($resources as $resource) {
+        foreach ($changedResources as $resource) {
             $data = $this->getMessage($resource);
             
             if ($data == false) {
-                $connectKey = array_search($resource, $this->connects);
-                unset($this->connects[$connectKey]);
+                $resourceKey = array_search($resource, $this->resources);
+                unset($this->resources[$resourceKey]);
                 $this->notify("$resource disconnected");
                 break;
             }
@@ -79,28 +79,17 @@ class Server extends Socket implements SocketInterface
 
     /**
      * Send message to all client except current client
-     * @param $currentConnect
+     * @param $sender
      * @param $message
      */
-    public function sendMessageToAllConnect($currentConnect, $message)
+    public function sendMessageToAllConnect($sender, $message)
     {
-        foreach ($this->connects as $connect) {
-            if ($connect != $currentConnect) {
-                $this->sendMessage($connect, "$currentConnect say: $message");
+        foreach ($this->resources as $resource) {
+            if ($resource != $sender) {
+                $this->sendMessage($resource, "$sender say: $message");
             }
         }
     }
-
-    /**
-     * Send message to resource
-     * @param $resource
-     * @param $message
-     * @return mixed
-     */
-    public function sendMessage($resource, $message)
-    {
-        fwrite($resource, $message, self::CHAR_LIMIT);
-    }    
     
     public function start()
     {

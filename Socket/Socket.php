@@ -2,18 +2,49 @@
 
 namespace Socket;
 
-class Socket
+abstract class Socket
 {
 
     const CHAR_LIMIT = 10000;
     const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
+    /**
+     * @var string $host
+     */
     protected $host;
+
+    /**
+     * @var string $port
+     */
     protected $port;
+
+    /**
+     * @var string $address
+     */
     protected $address;
+
+    /**
+     *      * @var resource $socket
+     */
     protected $socket;
 
-    protected $connects = array();
+    /**
+     * Error message if the connection fails
+     * @var string $errStr
+     */
+    protected $errStr;
+
+    /**
+     * Error number if connection fails
+     * @var integer $errNo
+     */
+    protected $errNo;
+
+    /**
+     * contain all connect
+     * @var array $connects
+     */
+    protected $resources = array();
 
     public function __construct($host, $port)
     {
@@ -77,20 +108,23 @@ class Socket
 
     /**
      * @param $resource
-     * @param $message
-     */
-    protected function onOpen($resource, $message)
-    {
-        fwrite($resource, $message, self::CHAR_LIMIT);
-    }
-
-    /**
-     * @param $resource
      * @return mixed
      */
     protected function getMessage($resource)
     {
         return fread($resource, self::CHAR_LIMIT);
+    }
+
+
+    /**
+     * Send message to resource
+     * @param $resource
+     * @param $message
+     * @return mixed
+     */
+    public function sendMessage($resource, $message)
+    {
+        fwrite($resource, $message, self::CHAR_LIMIT);
     }
 
     /**
@@ -101,6 +135,26 @@ class Socket
     {
         echo "$message\n";
     }
+
+    /**
+     * Connect to host
+     * @return mixed
+     */
+    abstract function connect();
+
+    /**
+     * Listen resource
+     * @param $changedResources
+     * @return mixed
+     */
+    abstract function onChange($changedResources);
+
+
+    /**
+     * socket in wait state
+     * @return mixed
+     */
+    abstract function onListen();
 
 }
 

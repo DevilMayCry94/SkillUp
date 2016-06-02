@@ -2,7 +2,7 @@
 
 namespace Socket;
 
-class Client extends Socket implements SocketInterface
+class Client extends Socket
 {
     /**
      * Input stream
@@ -10,17 +10,6 @@ class Client extends Socket implements SocketInterface
      */
     protected $stdIn;
 
-    /**
-     * Error message if the connection fails
-     * @var string $errStr
-     */
-    protected $errStr;
-
-    /**
-     * Error number if connection fails
-     * @var integer $errNo
-     */
-    protected $errNo;
 
     public function __construct($host, $port)
     {
@@ -42,31 +31,20 @@ class Client extends Socket implements SocketInterface
 
     /**
      * Listen resource
-     * @param $resources
+     * @param $changedResources
      * @return mixed
      */
-    public function onChange($resources)
+    public function onChange($changedResources)
     {
-        foreach ($resources as $stream) {
-            if ($stream == $this->stdIn) {
+        foreach ($changedResources as $resource) {
+            if ($resource == $this->stdIn) {
                 $message = trim(fgets($this->stdIn));
                 $this->sendMessage($this->socket, $message);
             } else {
-                $message = $this->getMessage($stream);
+                $message = $this->getMessage($resource);
                 $this->notify($message);
             }
         }
-    }
-
-    /**
-     * Send message to resource
-     * @param $resource
-     * @param $message
-     * @return mixed
-     */
-    public function sendMessage($resource, $message)
-    {
-        fwrite($resource, $message);
     }
 
     /**
