@@ -4,7 +4,6 @@ namespace Socket;
 
 class Server extends Socket implements SocketInterface
 {
-    protected $connects = array();
 
     public function __construct($host, $port)
     {
@@ -17,8 +16,8 @@ class Server extends Socket implements SocketInterface
      */
     public function connect()
     {
-        $this->inform('WELCOME TO SERVER!');
-        $this->socket = stream_socket_server($this->address, $errno, $errstr);
+        $this->notify('WELCOME TO SERVER!');
+        $this->socket = stream_socket_server($this->address, $errNo, $errStr);
     }
 
     /**
@@ -30,21 +29,25 @@ class Server extends Socket implements SocketInterface
         if (empty($this->socket)) {
             $this->connect();
         }
+
         while (true) {
             $streams = $this->connects;
             $write = $except = null;
-            $streams[] = $this->socket;
+            $socket = $this->socket;
+            $streams[] = $socket;
+
 
             if (!stream_select($streams, $write, $except, null)) {
                 break;
             }
 
-            if (in_array($this->socket, $streams)) {
-                if ($connect = stream_socket_accept($this->socket, -1)) {
-                    $this->connects[] = $connect;
-                    unset($streams[array_search($this->socket, $streams)]);
-                    $this->onOpen($connect, "Welcome to my socket\n");
-                    $this->inform("New connect!");
+            if (in_array($socket, $streams)) {
+                if ($newConnect = stream_socket_accept($socket, -1)) {
+                    $this->connects[] = $newConnect;
+
+                    unset($streams[array_search($socket, $streams)]);
+                    $this->sendMessage($newConnect, "Welcome to my socket\n");
+                    $this->notify("New connect!");
                 }
             }
 
@@ -65,7 +68,7 @@ class Server extends Socket implements SocketInterface
             if ($data == false) {
                 $connectKey = array_search($resource, $this->connects);
                 unset($this->connects[$connectKey]);
-                $this->inform("$resource disconnected");
+                $this->notify("$resource disconnected");
                 break;
             }
             
@@ -96,7 +99,7 @@ class Server extends Socket implements SocketInterface
      */
     public function sendMessage($resource, $message)
     {
-        fwrite($resource, $message, self::LIMIT);
+        fwrite($resource, $message, self::CHAR_LIMIT);
     }    
     
     public function start()

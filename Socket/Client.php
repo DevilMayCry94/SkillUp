@@ -6,21 +6,21 @@ class Client extends Socket implements SocketInterface
 {
     /**
      * Input stream
-     * @var resource $stdin
+     * @var resource $stdIn
      */
-    protected $stdin;
+    protected $stdIn;
 
     /**
      * Error message if the connection fails
-     * @var string $errstr
+     * @var string $errStr
      */
-    protected $errstr;
+    protected $errStr;
 
     /**
      * Error number if connection fails
-     * @var integer $errno
+     * @var integer $errNo
      */
-    protected $errno;
+    protected $errNo;
 
     public function __construct($host, $port)
     {
@@ -33,10 +33,10 @@ class Client extends Socket implements SocketInterface
      */
     public function connect()
     {
-        $this->socket = stream_socket_client($this->address, $this->errno, $this->errstr);
-        $this->stdin = fopen('php://stdin', 'r');
+        $this->socket = stream_socket_client($this->address, $this->errNo, $this->errStr);
+        $this->stdIn = fopen('php://stdin', 'r');
         if (!$this->socket) {
-            $this->inform("$this->errstr ($this->errno)");
+            $this->notify("$this->errStr ($this->errNo)");
         }
     }
 
@@ -48,12 +48,12 @@ class Client extends Socket implements SocketInterface
     public function onChange($resources)
     {
         foreach ($resources as $stream) {
-            if ($stream == $this->stdin) {
-                $msg = trim(fgets($this->stdin));
-                $this->sendMessage($this->socket, $msg);
+            if ($stream == $this->stdIn) {
+                $message = trim(fgets($this->stdIn));
+                $this->sendMessage($this->socket, $message);
             } else {
-                $msg = $this->getMessage($stream);
-                $this->inform($msg);
+                $message = $this->getMessage($stream);
+                $this->notify($message);
             }
         }
     }
@@ -78,9 +78,9 @@ class Client extends Socket implements SocketInterface
         if (!$this->socket) {
             $this->connect();
         }
-        $this->inform("Welcome to $this->address");
+        $this->notify("Welcome to $this->address");
         while (!feof($this->socket)) {
-            $streams = array($this->socket, $this->stdin);
+            $streams = array($this->socket, $this->stdIn);
             $write = $except = null;
 
             if (!stream_select($streams, $write, $except, null)) {
